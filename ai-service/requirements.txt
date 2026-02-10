@@ -1,0 +1,17 @@
+# Core Dependencies
+flask==3.0.0
+flask-cors==4.0.0
+opencv-python==4.8.1.78
+ultralytics==8.0.232
+numpy==1.24.3
+requests==2.31.0
+
+# Optional: For better tracking (DeepSORT)
+deep-sort-realtime==1.3.2
+
+# Optional: For GPU acceleration
+torch==2.1.0
+torchvision==0.16.0
+
+# Development
+python-dotenv==1.0.0
