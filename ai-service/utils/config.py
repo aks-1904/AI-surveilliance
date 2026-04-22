@@ -59,6 +59,10 @@ class Config:
         MODELS_PATH,
         'haarcascade_frontalface_default.xml'
     )
+
+    UNATTENDED_TIME = 10        # seconds
+    IST_THRESHOLD = 120       # pixels
+
     
     @classmethod
     def validate(cls):

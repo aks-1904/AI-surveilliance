@@ -12,13 +12,15 @@ import logging
 from datetime import datetime
 
 from detection.person_detector import PersonDetector
-from detection.face_blur import FaceBlurrer
+# from detection.face_blur import FaceBlurrer
 from analysis.zone_analyzer import ZoneAnalyzer
 from analysis.loitering_detector import LoiteringDetector
 from analysis.object_detector import UnattendedObjectDetector
 from risk.risk_engine import RiskEngine
 from utils.config import Config
 from utils.event_publisher import EventPublisher
+
+from flask import Response
 
 # Configure logging
 logging.basicConfig(
@@ -39,12 +41,28 @@ restricted_zones = []
 # Initialize components
 config = Config()
 person_detector = PersonDetector(config)
-face_blurrer = FaceBlurrer(config)
+# face_blurrer = FaceBlurrer(config)
 zone_analyzer = ZoneAnalyzer()
 loitering_detector = LoiteringDetector(config)
 unattended_object_detector = UnattendedObjectDetector(config)
 risk_engine = RiskEngine(config)
 event_publisher = EventPublisher(config)
+
+def generate_frames():
+    global camera, is_running
+
+    while is_running:
+        success, frame = camera.read()
+        if not success:
+            continue
+
+        # frame = face_blurrer.blur_faces(frame)
+
+        ret, buffer = cv2.imencode(".jpg", frame)
+        frame = buffer.tobytes()
+
+        yield (b"--frame\r\n"
+               b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
 
 
 def video_processing_loop():
@@ -99,7 +117,7 @@ def video_processing_loop():
                     logger.info(f"Event detected: {event['type']} - Risk: {risk_level}")
             
             # Step 7: Apply face blur for privacy
-            frame = face_blurrer.blur_faces(frame)
+            # frame = face_blurrer.blur_faces(frame)
             
             # Optional: Display for debugging (disable in production)
             if config.DEBUG_MODE:
@@ -227,7 +245,7 @@ def add_zone():
         return jsonify({'error': 'Missing polygon or name'}), 400
     
     import numpy as np
-    polygon = np.array(data['polygon'], dtype=np.int32)
+    polygon = np.array([[p["x"], p["y"]] for p in data["polygon"]], np.int32)
     
     if len(polygon) < 3:
         return jsonify({'error': 'Polygon must have at least 3 points'}), 400
@@ -287,6 +305,12 @@ def get_stats():
         'current_risk': risk_engine.get_current_risk(),
         'zones_count': len(restricted_zones)
     })
+
+@app.route("/video_feed")
+def video_feed():
+    return Response(generate_frames(),
+        mimetype="multipart/x-mixed-replace; boundary=frame")
+
 
 
 @app.route('/reset', methods=['POST'])
