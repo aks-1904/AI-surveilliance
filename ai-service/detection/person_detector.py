@@ -37,10 +37,29 @@ class PersonDetector:
         self.tracked_persons = {}
         self.max_tracking_distance = 100
 
+        # For mask peoples
+        self.mask_model = YOLO('mask_detector.pt')
+
         # To save whitelisted peoples
         self.known_face_encodings = []
         self.known_face_names = []
         self._load_whitelisted_faces()
+
+    def _check_if_masked(self, crop: np.ndarray) -> bool:
+        if crop.size == 0:
+            return False
+        
+        results = self.mask_model(crop, verbose = False)
+
+        for result in results:
+            for box in result.boxes:
+                class_id = int(box.cls[0])
+                confidence = float(box.conf[0])
+
+                if class_id == 0 and confidence > 0.5:
+                    return True
+        
+        return False
 
     def _load_whitelisted_faces(self):
         """Load known faces from a directory (e.g., 'whitelist_images/')"""
@@ -180,6 +199,10 @@ class PersonDetector:
                     if True in matches:
                         is_whitelisted = True
                         break # Found a match, stop checking
+
+            is_masked = False
+            if person_crop.size > 0:
+                is_masked = self._check_if_masked(person_crop)
             
             # Create person object
             person = {
@@ -187,7 +210,8 @@ class PersonDetector:
                 'bbox': detection['bbox'],
                 'center': center,
                 'confidence': detection['confidence'],
-                'is_whitelisted': is_whitelisted
+                'is_whitelisted': is_whitelisted,
+                'is_masked': is_masked
             }
             
             tracked.append(person)

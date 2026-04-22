@@ -50,6 +50,8 @@ class RiskEngine:
                 total_risk += self.risk_scores['UNATTENDED_OBJECT']
             elif event_type == 'LOITERING':
                 total_risk += self.risk_scores['LOITERING']
+            elif event_type == 'MASKED_LOITERING':
+                total_risk += 15
         
         # Determine risk level
         if total_risk <= self.risk_level_low:

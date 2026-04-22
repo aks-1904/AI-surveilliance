@@ -46,6 +46,7 @@ class LoiteringDetector:
         for person in persons:
             person_id = person['id']
             center = person['center']
+            is_masked = person.get('is_masked', False)
             current_person_ids.add(person_id)
             
             # Initialize tracking for new persons
@@ -73,15 +74,19 @@ class LoiteringDetector:
             
             # Check if person has moved significantly
             has_moved = self._has_moved_significantly(history['positions'])
+
+            # Updating threshold limit to 15 for masked people
+            active_threshold = 15 if is_masked else self.threshold_seconds
             
             # Detect loitering if:
             # 1. Person has been present for longer than threshold
             # 2. Person has not moved significantly
-            if time_spent >= self.threshold_seconds and not has_moved:
-                # Check if this is a new loitering event
+            if time_spent >= active_threshold and not has_moved:
                 if person_id not in self.active_loitering:
+                    event_type = 'MASKED_LOITERING' if is_masked else 'LOITERING'
+                    
                     event = {
-                        'type': 'LOITERING',
+                        'type': event_type,
                         'timestamp': timestamp.isoformat(),
                         'person_id': person_id,
                         'location': {
@@ -90,7 +95,7 @@ class LoiteringDetector:
                         },
                         'duration': int(time_spent),
                         'details': {
-                            'message': f"Person {person_id} loitering for {int(time_spent)} seconds",
+                            'message': f"Person {person_id} loitering for {int(time_spent)} seconds. Masked: {is_masked}",
                             'bbox': person['bbox'],
                             'start_time': history['first_seen'].isoformat()
                         }
@@ -98,13 +103,12 @@ class LoiteringDetector:
                     
                     events.append(event)
                     self.active_loitering[person_id] = timestamp
-                    logger.warning(f"Loitering detected: Person {person_id} for {int(time_spent)}s")
+                    logger.warning(f"{event_type} detected: Person {person_id} for {int(time_spent)}s")
         
         # Clean up persons no longer visible
         to_remove = []
         for person_id in self.person_history:
             if person_id not in current_person_ids:
-                # Remove if not seen for 5 seconds
                 last_update = self.person_history[person_id]['last_update']
                 if (timestamp - last_update).total_seconds() > 5:
                     to_remove.append(person_id)
