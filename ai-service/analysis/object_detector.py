@@ -59,6 +59,7 @@ class UnattendedObjectDetector:
             # Find closest person
             closest_distance = float('inf')
             has_nearby_person = False
+            is_owner_whitelisted = False
             
             obj_center = obj['center']
             
@@ -73,6 +74,8 @@ class UnattendedObjectDetector:
                 
                 if distance <= self.person_distance_threshold:
                     has_nearby_person = True
+                    if person.get('is_whitelisted', False):
+                        is_owner_whitelisted = True
                     break
             
             # Track object
@@ -87,14 +90,19 @@ class UnattendedObjectDetector:
                     'bbox': obj['bbox'],
                     'class_name': obj['class_name'],
                     'last_update': timestamp,
-                    'has_person': has_nearby_person
+                    'has_person': has_nearby_person,
+                    'owner_whitelisted': is_owner_whitelisted
                 }
             else:
                 self.tracked_objects[object_id]['last_update'] = timestamp
                 self.tracked_objects[object_id]['has_person'] = has_nearby_person
+                # Only update whitelisted status if there IS a person near it right now
+                if has_nearby_person:
+                    self.tracked_objects[object_id]['owner_whitelisted'] = is_owner_whitelisted
             
             # Check if object is unattended
-            if not has_nearby_person:
+            obj_data = self.tracked_objects[object_id]
+            if not has_nearby_person and not obj_data.get('owner_whitelisted', False):
                 obj_data = self.tracked_objects[object_id]
                 time_unattended = (timestamp - obj_data['first_seen']).total_seconds()
                 

@@ -60,3 +60,6 @@ htmlcov/
 
 # PyCharm
 .idea/
+
+# Image directory
+whitelist_images/

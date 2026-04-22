@@ -8,6 +8,8 @@ import numpy as np
 from ultralytics import YOLO
 import logging
 from typing import List, Dict, Any
+import face_recognition
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,30 @@ class PersonDetector:
         self.next_id = 1
         self.tracked_persons = {}
         self.max_tracking_distance = 100
+
+        # To save whitelisted peoples
+        self.known_face_encodings = []
+        self.known_face_names = []
+        self._load_whitelisted_faces()
+
+    def _load_whitelisted_faces(self):
+        """Load known faces from a directory (e.g., 'whitelist_images/')"""
+        whitelist_dir = getattr(self.config, 'WHITELIST_DIR', 'whitelist_images/')
+        if not os.path.exists(whitelist_dir):
+            os.makedirs(whitelist_dir)
+            logger.warning(f"Created {whitelist_dir}. Please add images of whitelisted people here.")
+            return
+
+        for filename in os.listdir(whitelist_dir):
+            if filename.endswith((".jpg", ".png", ".jpeg")):
+                image_path = os.path.join(whitelist_dir, filename)
+                image = face_recognition.load_image_file(image_path)
+                encodings = face_recognition.face_encodings(image)
+                
+                if encodings:
+                    self.known_face_encodings.append(encodings[0])
+                    self.known_face_names.append(os.path.splitext(filename)[0])
+        logger.info(f"Loaded {len(self.known_face_names)} whitelisted faces.")
     
     def detect(self, frame: np.ndarray) -> List[Dict[str, Any]]:
         """
@@ -84,7 +110,7 @@ class PersonDetector:
                     })
             
             # Assign IDs using simple tracking
-            detected_persons = self._track_persons(current_detections)
+            detected_persons = self._track_persons(current_detections, frame)
             
             return detected_persons
             
@@ -92,7 +118,7 @@ class PersonDetector:
             logger.error(f"Error in person detection: {str(e)}")
             return []
     
-    def _track_persons(self, detections: List[Dict]) -> List[Dict[str, Any]]:
+    def _track_persons(self, detections: List[Dict], frame: np.ndarray) -> List[Dict[str, Any]]:
         """
         Simple tracking algorithm to maintain person IDs across frames
         
@@ -133,13 +159,35 @@ class PersonDetector:
             else:
                 person_id = self.next_id
                 self.next_id += 1
+
+            is_whitelisted = False
+
+            # Extract the person's image crop
+            x1, y1, x2, y2 = detection['bbox']
+            person_crop = frame[y1:y2, x1:x2]
+
+            # Only run face recognition if we have a valid crop and known faces
+            if person_crop.size > 0 and self.known_face_encodings:
+                # Convert BGR (OpenCV) to RGB (face_recognition)
+                rgb_crop = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
+                
+                # Find faces in this specific person's crop
+                face_locations = face_recognition.face_locations(rgb_crop)
+                face_encodings = face_recognition.face_encodings(rgb_crop, face_locations)
+                
+                for face_encoding in face_encodings:
+                    matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding, tolerance=0.5)
+                    if True in matches:
+                        is_whitelisted = True
+                        break # Found a match, stop checking
             
             # Create person object
             person = {
                 'id': person_id,
                 'bbox': detection['bbox'],
                 'center': center,
-                'confidence': detection['confidence']
+                'confidence': detection['confidence'],
+                'is_whitelisted': is_whitelisted
             }
             
             tracked.append(person)

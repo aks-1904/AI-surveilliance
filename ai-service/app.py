@@ -85,17 +85,21 @@ def video_processing_loop():
         try:
             # Step 1: Detect persons
             persons = person_detector.detect(frame)
+
+            # Separate whitelisted and suspecious persons
+            suspicious_persons = [p for p in persons if not p.get('is_whitelisted', False)]
+            whitelisted_persons = [p for p in persons if p.get('is_whitelisted', False)]
             
             # Step 2: Check zone intrusions
             zone_events = zone_analyzer.check_intrusions(
-                persons, 
+                suspicious_persons, 
                 restricted_zones, 
                 timestamp
             )
             
             # Step 3: Detect loitering
             loitering_events = loitering_detector.detect(
-                persons, 
+                suspicious_persons, 
                 timestamp
             )
             
