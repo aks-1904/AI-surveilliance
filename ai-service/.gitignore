@@ -66,3 +66,11 @@ whitelist_images/
 
 # Output directory
 footage_output/
+
+# Images
+*.jpg
+*.jpeg
+*.png
+
+# Videos
+*.mp4
