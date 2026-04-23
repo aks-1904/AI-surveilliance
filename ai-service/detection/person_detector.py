@@ -38,7 +38,12 @@ class PersonDetector:
         self.max_tracking_distance = 100
 
         # For mask peoples
-        self.mask_model = YOLO('mask_detector.pt')
+        try:
+            self.mask_model = YOLO(config.YOLO_MASK_DETECTOR_MODEL)
+            logger.info(f"YOLO Mask Detector model loaded: ${config.YOLO_MASK_DETECTOR_MODEL}")
+        except Exception as e:
+            logger.error(f"Failed to load YOLO Mask Detector model: {str(e)}")
+            raise
 
         # To save whitelisted peoples
         self.known_face_encodings = []

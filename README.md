@@ -50,8 +50,8 @@ A complete AI-powered surveillance system with real-time person detection, zone 
 ### 1. Clone Repository
 
 ```bash
-git clone <your-repo-url>
-cd surveillance-system
+git clone https://github.com/aks-1904/AI-surveilliance.git
+cd AI-surveilliance
 ```
 
 ### 2. Setup AI Service
@@ -63,7 +63,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your settings
-python app.py
+python3 app.py
 ```
 
 AI Service will start on http://localhost:5000
@@ -94,7 +94,7 @@ Frontend will open at http://localhost:3001
 ## 📁 Project Structure
 
 ```
-surveillance-system/
+AI-surveillance/
 ├── ai-service/          # Python AI detection service
 │   ├── app.py          # Flask application
 │   ├── detection/      # YOLO detection modules

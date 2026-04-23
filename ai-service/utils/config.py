@@ -28,6 +28,7 @@ class Config:
     
     # YOLO Configuration
     YOLO_MODEL = os.getenv('YOLO_MODEL', 'yolov8n.pt')  # n=nano, s=small, m=medium
+    YOLO_MASK_DETECTOR_MODEL = os.getenv('YOLO_MASK_DETECTOR_MODEL', 'mask_detector.pt')
     CONFIDENCE_THRESHOLD = float(os.getenv('CONFIDENCE_THRESHOLD', 0.5))
     
     # Face Blur Configuration

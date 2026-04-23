@@ -299,4 +299,59 @@ export const getBackendHealth = async () => {
   }
 };
 
+export const resetAISystem = async () => {
+  try {
+    const response = await aiApi.post('/reset');
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// ==================== FOOTAGE ANALYSIS API (AI Service) ====================
+
+export const analyzeFootage = async (file, useZones = true) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('use_zones', useZones);
+
+    const response = await aiApi.post('/footage/analyze', formData, {
+      headers: {
+        // Axios will automatically set the correct boundary for multipart/form-data
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getFootageJobStatus = async (jobId) => {
+  try {
+    const response = await aiApi.get(`/footage/status/${jobId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getAllFootageJobs = async () => {
+  try {
+    const response = await aiApi.get('/footage/jobs');
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getFootageVideoUrl = (jobId) => {
+  return `${aiApi.defaults.baseURL}/footage/download/${jobId}/video`;
+};
+
+export const getFootageSummaryUrl = (jobId) => {
+  return `${aiApi.defaults.baseURL}/footage/download/${jobId}/summary`;
+};
+
 export default api;
