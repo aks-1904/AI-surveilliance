@@ -9,6 +9,8 @@ import cv2
 import threading
 import time
 import logging
+import os
+import uuid
 from datetime import datetime
 
 from detection.person_detector import PersonDetector
@@ -19,6 +21,7 @@ from analysis.object_detector import UnattendedObjectDetector
 from risk.risk_engine import RiskEngine
 from utils.config import Config
 from utils.event_publisher import EventPublisher
+from analysis.footage_analyzer import FootageAnalyzer
 
 from flask import Response
 
@@ -37,6 +40,9 @@ camera = None
 is_running = False
 processing_thread = None
 restricted_zones = []
+footage_analyzer = None
+footage_jobs = {}
+OUTPUT_DIR = os.getenv('FOOTAGE_OUTPUT_DIR', './footage_output')
 
 # Initialize components
 config = Config()
@@ -47,6 +53,11 @@ loitering_detector = LoiteringDetector(config)
 unattended_object_detector = UnattendedObjectDetector(config)
 risk_engine = RiskEngine(config)
 event_publisher = EventPublisher(config)
+footage_analyzer = FootageAnalyzer(
+    config, person_detector, zone_analyzer,
+    loitering_detector, unattended_object_detector, risk_engine
+)
+footage_jobs = {}   # job_id -> status dict
 
 def generate_frames():
     global camera, is_running
@@ -173,6 +184,41 @@ def video_processing_loop():
     logger.info("Video processing loop stopped")
     if config.DEBUG_MODE:
         cv2.destroyAllWindows()
+
+def _run_footage_job(job_id: str, input_path: str, zones: list):
+    """Background worker for footage analysis."""
+    footage_jobs[job_id]['status'] = 'running'
+ 
+    output_video   = os.path.join(OUTPUT_DIR, f"{job_id}_highlight.mp4")
+    summary_file   = os.path.join(OUTPUT_DIR, f"{job_id}_summary.txt")
+ 
+    def _progress(pct):
+        footage_jobs[job_id]['progress'] = pct
+ 
+    try:
+        result = footage_analyzer.analyze(
+            input_video_path  = input_path,
+            output_video_path = output_video,
+            summary_path      = summary_file,
+            restricted_zones  = zones,
+            progress_callback = _progress,
+        )
+        footage_jobs[job_id].update({
+            'status':   'done',
+            'progress': 100,
+            'result':   {
+                'total_events':       result['stats']['total_events'],
+                'risk_segment_count': result['stats']['risk_segment_count'],
+                'total_risk_seconds': result['stats']['total_risk_seconds'],
+                'event_counts':       result['stats']['event_counts'],
+                'output_video':       output_video,
+                'summary_file':       summary_file,
+                'duration_seconds':   result['duration_seconds'],
+            }
+        })
+    except Exception as exc:
+        logger.error(f"Footage job {job_id} failed: {exc}", exc_info=True)
+        footage_jobs[job_id].update({'status': 'error', 'error': str(exc)})
 
 
 @app.route('/health', methods=['GET'])
@@ -326,6 +372,99 @@ def reset_system():
     
     logger.info("System reset completed")
     return jsonify({'message': 'System reset successfully'})
+
+@app.route('/footage/analyze', methods=['POST'])
+def analyze_footage():
+    """
+    Start a footage analysis job.
+ 
+    Accepts multipart/form-data:
+        file      – the video file (required)
+        use_zones – "true"/"false" — whether to apply currently configured zones (default true)
+ 
+    OR application/json:
+        { "filepath": "/absolute/path/to/video.mp4", "use_zones": true }
+ 
+    Returns: { job_id, status }
+    """
+    use_zones = True
+    input_path = None
+ 
+    # -- Uploaded file --
+    if 'file' in request.files:
+        f = request.files['file']
+        if f.filename == '':
+            return jsonify({'error': 'Empty filename'}), 400
+ 
+        upload_dir = os.path.join(OUTPUT_DIR, 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        safe_name  = f"{uuid.uuid4()}_{f.filename}"
+        input_path = os.path.join(upload_dir, safe_name)
+        f.save(input_path)
+        use_zones  = request.form.get('use_zones', 'true').lower() == 'true'
+ 
+    # -- JSON body with filepath --
+    elif request.is_json:
+        data = request.json
+        input_path = data.get('filepath')
+        use_zones  = data.get('use_zones', True)
+        if not input_path or not os.path.exists(input_path):
+            return jsonify({'error': 'filepath missing or file not found'}), 400
+    else:
+        return jsonify({'error': 'Send a video file (multipart) or JSON {filepath}'}), 400
+ 
+    zones = restricted_zones if use_zones else []
+    job_id = str(uuid.uuid4())
+    footage_jobs[job_id] = {'status': 'queued', 'progress': 0, 'result': None, 'error': None}
+ 
+    t = threading.Thread(target=_run_footage_job, args=(job_id, input_path, zones), daemon=True)
+    t.start()
+ 
+    logger.info(f"Footage job {job_id} started for: {input_path}")
+    return jsonify({'job_id': job_id, 'status': 'queued'}), 202
+
+@app.route('/footage/status/<job_id>', methods=['GET'])
+def footage_job_status(job_id: str):
+    """Poll analysis progress.  Returns { job_id, status, progress, result?, error? }"""
+    job = footage_jobs.get(job_id)
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify({'job_id': job_id, **job})
+
+@app.route('/footage/download/<job_id>/video', methods=['GET'])
+def download_highlight_video(job_id: str):
+    """Download the highlight reel for a completed job."""
+    from flask import send_file
+    job = footage_jobs.get(job_id)
+    if not job or job['status'] != 'done':
+        return jsonify({'error': 'Job not ready'}), 404
+    path = job['result']['output_video']
+    if not os.path.exists(path):
+        return jsonify({'error': 'File not found on disk'}), 404
+    return send_file(path, mimetype='video/mp4', as_attachment=True,
+                     download_name=f"highlights_{job_id}.mp4")
+
+@app.route('/footage/download/<job_id>/summary', methods=['GET'])
+def download_summary(job_id: str):
+    """Download the text summary for a completed job."""
+    from flask import send_file
+    job = footage_jobs.get(job_id)
+    if not job or job['status'] != 'done':
+        return jsonify({'error': 'Job not ready'}), 404
+    path = job['result']['summary_file']
+    if not os.path.exists(path):
+        return jsonify({'error': 'File not found on disk'}), 404
+    return send_file(path, mimetype='text/plain', as_attachment=True,
+                     download_name=f"summary_{job_id}.txt")
+
+@app.route('/footage/jobs', methods=['GET'])
+def list_footage_jobs():
+    """List all jobs (without heavy result data)."""
+    slim = {
+        jid: {k: v for k, v in info.items() if k != 'result'}
+        for jid, info in footage_jobs.items()
+    }
+    return jsonify({'jobs': slim})
 
 
 if __name__ == '__main__':
