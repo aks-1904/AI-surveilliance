@@ -11,6 +11,8 @@ from typing import List, Dict, Any
 import face_recognition
 import os
 
+from .face_enchancer import FaceEnhancer
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +51,9 @@ class PersonDetector:
         self.known_face_encodings = []
         self.known_face_names = []
         self._load_whitelisted_faces()
+
+        # For face enhancing (For blur images)
+        self.face_enhancer = FaceEnhancer(history_size=10)
 
     def _check_if_masked(self, crop: np.ndarray) -> bool:
         if crop.size == 0:
@@ -190,6 +195,13 @@ class PersonDetector:
             x1, y1, x2, y2 = detection['bbox']
             person_crop = frame[y1:y2, x1:x2]
 
+            # Enhancement logic
+            if person_crop.size > 0:
+                # Enhance the crop using the overlapping algorithm
+                enhanced_crop = self.face_enhancer.enhance(person_id, person_crop)
+            else:
+                enhanced_crop = person_crop
+
             # Only run face recognition if we have a valid crop and known faces
             if person_crop.size > 0 and self.known_face_encodings:
                 # Convert BGR (OpenCV) to RGB (face_recognition)
@@ -239,6 +251,7 @@ class PersonDetector:
         
         for person_id in to_remove:
             del self.tracked_persons[person_id]
+            self.face_enhancer.reset_person(person_id)
         
         return tracked
     

@@ -22,6 +22,7 @@ from risk.risk_engine import RiskEngine
 from utils.config import Config
 from utils.event_publisher import EventPublisher
 from analysis.footage_analyzer import FootageAnalyzer
+from detection.weapon_detector import WeaponDetector
 
 from flask import Response
 
@@ -51,6 +52,7 @@ person_detector = PersonDetector(config)
 zone_analyzer = ZoneAnalyzer()
 loitering_detector = LoiteringDetector(config)
 unattended_object_detector = UnattendedObjectDetector(config)
+weapon_detector = WeaponDetector(config)
 risk_engine = RiskEngine(config)
 event_publisher = EventPublisher(config)
 footage_analyzer = FootageAnalyzer(
@@ -120,9 +122,11 @@ def video_processing_loop():
                 persons,
                 timestamp
             )
+
+            weapon_events = weapon_detector.detect(frame, timestamp)
             
             # Step 5: Calculate risk score
-            all_events = zone_events + loitering_events + unattended_events
+            all_events = zone_events + loitering_events + unattended_events + weapon_events
             risk_score, risk_level = risk_engine.calculate_risk(all_events)
             
             # Step 6: Publish events to backend

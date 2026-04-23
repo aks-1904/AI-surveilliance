@@ -52,6 +52,8 @@ class RiskEngine:
                 total_risk += self.risk_scores['LOITERING']
             elif event_type == 'MASKED_LOITERING':
                 total_risk += 15
+            elif event_type == 'WEAPON_DETECTED':
+                total_risk += 100 # Instant high risk
         
         # Determine risk level
         if total_risk <= self.risk_level_low:

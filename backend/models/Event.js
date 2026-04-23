@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const eventSchema = new mongoose.Schema({
   event_type: {
     type: String,
-    enum: ['RESTRICTED_ENTRY', 'LOITERING', 'UNATTENDED_OBJECT'],
+    enum: ['RESTRICTED_ENTRY', 'LOITERING', 'UNATTENDED_OBJECT', 'MASKED_LOITERING', 'WEAPON_DETECTED'],
     required: true,
     index: true
   },
@@ -30,8 +30,7 @@ const eventSchema = new mongoose.Schema({
   risk_score: {
     type: Number,
     required: true,
-    min: 0,
-    max: 10
+    min: 0
   },
   risk_level: {
     type: String,

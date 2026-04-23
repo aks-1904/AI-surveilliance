@@ -24,6 +24,8 @@ const AlertPanel = ({ alerts, onAlertAction }) => {
         return '⏱️';
       case 'UNATTENDED_OBJECT':
         return '💼';
+      case 'WEAPON_DETECTED':
+        return '⚠️';
       default:
         return '⚠️';
     }

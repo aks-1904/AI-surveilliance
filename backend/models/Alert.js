@@ -9,7 +9,7 @@ const alertSchema = new mongoose.Schema({
   },
   alert_type: {
     type: String,
-    enum: ['RESTRICTED_ENTRY', 'LOITERING', 'UNATTENDED_OBJECT'],
+    enum: ['RESTRICTED_ENTRY', 'LOITERING', 'UNATTENDED_OBJECT', 'MASKED_LOITERING', 'WEAPON_DETECTED'],
     required: true
   },
   priority: {

@@ -28,7 +28,7 @@ const validateEvent = (req, res, next) => {
   }
   
   // Validate event_type
-  const validEventTypes = ['RESTRICTED_ENTRY', 'LOITERING', 'UNATTENDED_OBJECT'];
+  const validEventTypes = ['RESTRICTED_ENTRY', 'LOITERING', 'UNATTENDED_OBJECT', 'WEAPON_DETECTED', 'MASKED_LOITERING'];
   if (!validEventTypes.includes(event_type)) {
     return res.status(400).json({ 
       error: 'Invalid event_type. Must be one of: ' + validEventTypes.join(', '),
@@ -38,9 +38,9 @@ const validateEvent = (req, res, next) => {
   }
   
   // Validate risk_score
-  if (typeof risk_score !== 'number' || risk_score < 0 || risk_score > 10) {
+  if (typeof risk_score !== 'number' || risk_score < 0) {
     return res.status(400).json({ 
-      error: 'Invalid risk_score. Must be a number between 0 and 10',
+      error: 'Invalid risk_score. Must be a number more than 0',
       field: 'risk_score',
       received: risk_score
     });
