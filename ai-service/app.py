@@ -155,6 +155,18 @@ def _draw_debug(frame, persons, risk_score, risk_level):
         cv2.rectangle(display, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(display, f"ID:{person['id']}", (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        logger.info(person)
+        if 'attributes' in person and person['attributes']:
+            logger.info("HELLO")
+            attr = person['attributes']
+            info_text = f"Top: {attr.get('upper_clothing_color', 'N/A')} | Build: {attr.get('body_type', 'N/A')}"
+
+            # Draw a tiny black background box for readability
+            cv2.rectangle(display, (x1, y2 + 5), (x1 + 250, y2 + 25), (0, 0, 0), -1)
+            cv2.putText(display, info_text, (x1 + 5, y2 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+
     for zone in restricted_zones:
         cv2.polylines(display, [zone['polygon']], True, (0, 0, 255), 2)
     color = (0, 255, 0) if risk_level == 'LOW' else (0, 165, 255) if risk_level == 'MEDIUM' else (0, 0, 255)

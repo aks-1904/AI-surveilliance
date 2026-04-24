@@ -10,7 +10,8 @@ const { asyncHandler } = require('../middleware/errorHandler');
  * Receive event from AI service
  */
 router.post('/', validateEvent, asyncHandler(async (req, res) => {
-  const { event_type, timestamp, location, details, risk_score, risk_level, metadata } = req.body;
+  console.log(req.body);
+  const { event_type, timestamp, location, details, risk_score, risk_level, metadata, attributes } = req.body;
   
   // Create event
   const event = new Event({
@@ -20,7 +21,8 @@ router.post('/', validateEvent, asyncHandler(async (req, res) => {
     details,
     risk_score,
     risk_level,
-    metadata
+    metadata,
+    attributes
   });
   
   await event.save();
@@ -30,7 +32,8 @@ router.post('/', validateEvent, asyncHandler(async (req, res) => {
     event_id: event._id,
     alert_type: event_type,
     priority: risk_level,
-    message: details?.message || `${event_type.replace('_', ' ')} detected`
+    message: details?.message || `${event_type.replace('_', ' ')} detected`,
+    attributes
   });
   
   await alert.save();

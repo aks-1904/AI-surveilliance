@@ -48,7 +48,8 @@ class EventPublisher:
                     'object_id': event.get('object_id'),
                     'zone_id': event.get('zone_id'),
                     'duration': event.get('duration')
-                }
+                },
+                'attributes': event['attributes']
             }
             
             response = self.session.post(

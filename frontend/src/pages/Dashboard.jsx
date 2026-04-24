@@ -78,7 +78,9 @@ const Dashboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                🎥 AI Surveillance Co-Pilot
+                🎥 YU-WATCH 
+                <br />
+                <span className="text-lg text-gray-600">AI Surveillance Co-Pilot</span>
               </h1>
               <p className="text-sm text-gray-600 mt-1">
                 Real-time security monitoring system

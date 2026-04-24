@@ -112,6 +112,7 @@ class LoiteringDetector:
                             'bbox':       person['bbox'],
                             'start_time': rec['first_seen'].isoformat(),
                         },
+                        'attributes': person['attributes'],
                     }
                     events.append(event)
                     self._alerted[pid] = time.monotonic()

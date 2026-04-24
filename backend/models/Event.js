@@ -17,6 +17,7 @@ const eventSchema = new mongoose.Schema({
     x: { type: Number },
     y: { type: Number }
   },
+  attributes: JSON,
   details: {
     message: String,
     bbox: [Number],

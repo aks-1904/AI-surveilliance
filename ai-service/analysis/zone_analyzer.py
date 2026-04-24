@@ -124,6 +124,7 @@ class ZoneAnalyzer:
                 'message': f"Person {person['id']} entered restricted zone: {zone['name']}",
                 'bbox':    person['bbox'],
             },
+            'attributes': person['attributes'],
         }
 
     def is_point_in_zone(self, point: tuple, zone_polygon: np.ndarray) -> bool:

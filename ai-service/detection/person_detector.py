@@ -10,6 +10,7 @@ import logging
 from typing import List, Dict, Any
 import face_recognition
 import os
+from .attribute_extractor import AttributeExtractor
 
 from .face_enchancer import FaceEnhancer
 
@@ -54,6 +55,8 @@ class PersonDetector:
 
         # For face enhancing (For blur images)
         self.face_enhancer = FaceEnhancer()
+
+        self.attribute_extractor = AttributeExtractor(config)
 
     def _check_if_masked(self, crop: np.ndarray) -> bool:
         if crop.size == 0:
@@ -220,6 +223,10 @@ class PersonDetector:
             is_masked = False
             if person_crop.size > 0:
                 is_masked = self._check_if_masked(person_crop)
+
+            attributes = {}
+            if not is_whitelisted and person_crop.size > 0:
+                attributes = self.attribute_extractor.extract_features(person_crop, detection['bbox'])
             
             # Create person object
             person = {
@@ -228,7 +235,8 @@ class PersonDetector:
                 'center': center,
                 'confidence': detection['confidence'],
                 'is_whitelisted': is_whitelisted,
-                'is_masked': is_masked
+                'is_masked': is_masked,
+                'attributes': attributes
             }
             
             tracked.append(person)

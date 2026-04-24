@@ -2,6 +2,7 @@ import React from 'react';
 import { acknowledgeEvent, markAlertAsRead } from '../services/api';
 
 const AlertPanel = ({ alerts, onAlertAction }) => {
+  console.log(alerts);
   const getRiskColor = (level) => {
     switch (level) {
       case 'HIGH':
@@ -18,16 +19,11 @@ const AlertPanel = ({ alerts, onAlertAction }) => {
 
   const getEventIcon = (type) => {
     switch (type) {
-      case 'RESTRICTED_ENTRY':
-        return '🚫';
-      case 'LOITERING':
-        return '⏱️';
-      case 'UNATTENDED_OBJECT':
-        return '💼';
-      case 'WEAPON_DETECTED':
-        return '⚠️';
-      default:
-        return '⚠️';
+      case 'RESTRICTED_ENTRY': return '🚫';
+      case 'LOITERING': return '⏱️';
+      case 'UNATTENDED_OBJECT': return '💼';
+      case 'WEAPON_DETECTED': return '⚠️';
+      default: return '⚠️';
     }
   };
 
@@ -44,7 +40,7 @@ const AlertPanel = ({ alerts, onAlertAction }) => {
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     const now = new Date();
-    const diff = Math.floor((now - date) / 1000); // seconds
+    const diff = Math.floor((now - date) / 1000);
 
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -86,6 +82,28 @@ const AlertPanel = ({ alerts, onAlertAction }) => {
                     <p className="text-xs mt-1 line-clamp-2">
                       {alert.event.details?.message || alert.alert.message}
                     </p>
+
+                    {/* NEW: Display Soft Biometrics / Attributes if they exist */}
+                    {alert.event.attributes && (
+                      <div className="mt-2 bg-black/5 p-2 rounded text-xs border border-black/10">
+                        <span className="font-bold text-gray-700 block mb-1">👤 Suspect Identity Profile:</span>
+                        <div className="grid grid-cols-2 gap-1 text-gray-600">
+                          {alert.event.attributes.upper_clothing_color && (
+                            <p>👕 Upper: <span className="font-medium">{alert.event.attributes.upper_clothing_color}</span></p>
+                          )}
+                          {alert.event.attributes.lower_clothing_color && (
+                            <p>👖 Lower: <span className="font-medium">"Unknown</span></p>
+                          )}
+                          {alert.event.attributes.wearing_glasses && (
+                            <p>👓 Glasses: <span className="font-medium text-red-600">Yes</span></p>
+                          )}
+                          {alert.event.attributes.body_type && (
+                            <p>🧍 Build: <span className="font-medium">{alert.event.attributes.body_type}</span></p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2 mt-2 text-xs">
                       <span className="text-gray-600">
                         {formatTime(alert.event.timestamp)}
