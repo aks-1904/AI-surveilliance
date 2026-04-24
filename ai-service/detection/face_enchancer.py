@@ -6,45 +6,50 @@ logger = logging.getLogger(__name__)
 
 class FaceEnhancer:
     """
-    Enhances blurred or low-res faces by overlapping multiple 
-    historical frames of the same person and applying sharpening.
+    Enhances blurred or low-res faces using Lanczos Upscaling, 
+    Bilateral Filtering, CLAHE, and Multi-stage Sharpening Kernels.
     """
-    def __init__(self, history_size=15):
-        self.history_size = history_size
-        self.person_history = {}
-        self.target_size = (150, 150) # Standardize size for overlapping
+    def __init__(self):
+        pass
 
     def enhance(self, person_id, crop: np.ndarray) -> np.ndarray:
         if crop is None or crop.size == 0:
             return crop
             
-        # Resize to common dimensions so matrices can be overlapped
-        resized = cv2.resize(crop, self.target_size)
+        # 1. High-Quality Upscaling (Lanczos4 is sharper and more precise than Bicubic)
+        height, width = crop.shape[:2]
+        scaled = cv2.resize(crop, (width * 2, height * 2), interpolation=cv2.INTER_LANCZOS4)
+
+        # 2. Noise Reduction (Bilateral filtering smooths skin but preserves hard edges)
+        # If we don't do this, the sharpening steps will just amplify ugly pixel noise.
+        smoothed = cv2.bilateralFilter(scaled, d=9, sigmaColor=75, sigmaSpace=75)
+
+        # 3. Enhance Contrast and Lighting (CLAHE)
+        lab = cv2.cvtColor(smoothed, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) # Slightly lowered clipLimit to prevent blowout
+        cl = clahe.apply(l)
+
+        limg = cv2.merge((cl, a, b))
+        enhanced_contrast = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+        # 4. "Overlapping" / High-Pass Sharpening (Your suggestion)
+        # We blur a copy, subtract it to find the edges, and overlap those edges back.
+        gaussian = cv2.GaussianBlur(enhanced_contrast, (0, 0), 2.0)
         
-        if person_id not in self.person_history:
-            self.person_history[person_id] = []
-            
-        # Append to history
-        self.person_history[person_id].append(resized)
+        # 1.5 weight to original, -0.5 weight to blurred to extract and boost edges
+        sharp_image = cv2.addWeighted(enhanced_contrast, 1.5, gaussian, -0.5, 0)
         
-        # Keep only the most recent N frames
-        if len(self.person_history[person_id]) > self.history_size:
-            self.person_history[person_id].pop(0)
-            
-        # Overlap (average) the frames to cancel out noise and temporal blur
-        float_images = [img.astype(np.float32) for img in self.person_history[person_id]]
-        avg_image = np.mean(float_images, axis=0).astype(np.uint8)
-        
-        # Apply a sharpening filter to make it crisp
-        sharpen_kernel = np.array([
-            [-1, -1, -1], 
-            [-1,  9, -1], 
-            [-1, -1, -1]
-        ])
-        sharp_image = cv2.filter2D(avg_image, -1, sharpen_kernel)
-        
-        return sharp_image
+        # 5. Final Micro-Contrast Edge Kernel
+        # This is a classic overlapping kernel that forces individual pixels to stand out
+        # against their neighbors, eliminating the "soft" look of a blur.
+        kernel = np.array([[ 0, -1,  0],
+                           [-1,  5, -1],
+                           [ 0, -1,  0]])
+        final_crisp = cv2.filter2D(sharp_image, -1, kernel)
+
+        return final_crisp
 
     def reset_person(self, person_id):
-        if person_id in self.person_history:
-            del self.person_history[person_id]
+        pass

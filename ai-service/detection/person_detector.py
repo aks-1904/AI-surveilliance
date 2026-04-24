@@ -53,7 +53,7 @@ class PersonDetector:
         self._load_whitelisted_faces()
 
         # For face enhancing (For blur images)
-        self.face_enhancer = FaceEnhancer(history_size=10)
+        self.face_enhancer = FaceEnhancer()
 
     def _check_if_masked(self, crop: np.ndarray) -> bool:
         if crop.size == 0:

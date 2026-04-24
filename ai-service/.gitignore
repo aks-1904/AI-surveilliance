@@ -71,6 +71,7 @@ footage_output/
 *.jpg
 *.jpeg
 *.png
+*.avif
 
 # Videos
 *.mp4
