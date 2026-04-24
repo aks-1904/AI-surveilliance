@@ -1,217 +1,195 @@
 """
 Unattended Object Detection
-Detects objects (bags, packages) that are left unattended
+Detects objects (bags, packages) that are left unattended.
+
+Fixes vs original
+-----------------
+* Alert fires ONCE per object tracking lifetime.  If the object disappears
+  (picked up / leaves frame) and reappears, it gets a fresh object_id via
+  the existing proximity tracker — so re-appearing is automatically treated
+  as a new object.
+* Notifies EventCooldownManager when an object is removed so the global
+  cooldown record is also cleared.
+* Whitelisted-owner logic preserved: if a whitelisted person is ever seen
+  near the object, the object is permanently flagged as attended.
 """
 
 import cv2
 import numpy as np
 import logging
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class UnattendedObjectDetector:
-    """Detects unattended objects"""
-    
-    def __init__(self, config):
-        self.config = config
-        self.threshold_seconds = config.UNATTENDED_THRESHOLD_SECONDS
+    """Detects unattended objects."""
+
+    # COCO class IDs: 24=backpack, 25=umbrella, 26=handbag, 28=suitcase
+    OBJECT_CLASS_IDS = [24, 25, 26, 28]
+
+    def __init__(self, config, cooldown_manager=None):
+        self.config                    = config
+        self.threshold_seconds         = config.UNATTENDED_THRESHOLD_SECONDS
         self.person_distance_threshold = config.OBJECT_PERSON_DISTANCE_THRESHOLD
-        
-        # Classes that are considered as potential unattended objects
-        # COCO class IDs: 24=backpack, 25=umbrella, 26=handbag, 28=suitcase
-        self.OBJECT_CLASS_IDS = [24, 25, 26, 28]
-        
-        # Track detected objects
-        self.tracked_objects = {}
-        self.active_alerts = {}
+        self._cooldown                 = cooldown_manager  # optional
+
+        self.tracked_objects: Dict[int, Dict] = {}
+        # object_id -> True  (one-shot: fired, will not fire again this lifetime)
+        self._alerted: Dict[int, bool]         = {}
         self.next_object_id = 1
-    
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def detect(
         self,
         frame: np.ndarray,
         persons: List[Dict],
-        timestamp: datetime
+        timestamp: datetime,
     ) -> List[Dict[str, Any]]:
-        """
-        Detect unattended objects
-        
-        Args:
-            frame: Current video frame
-            persons: List of detected persons
-            timestamp: Current timestamp
-        
-        Returns:
-            List of unattended object events
-        """
-        events = []
-        
-        # Detect objects using background subtraction or YOLO
-        # For simplicity, using YOLO from person_detector's model
-        # In production, you'd want a separate YOLO instance
-        detected_objects = self._detect_objects(frame)
-        
-        current_object_ids = set()
-        
+        events: List[Dict[str, Any]] = []
+
+        detected_objects  = self._detect_objects(frame)
+        current_object_ids: set = set()
+
         for obj in detected_objects:
-            # Find closest person
-            closest_distance = float('inf')
-            has_nearby_person = False
-            is_owner_whitelisted = False
-            
             obj_center = obj['center']
-            
+
+            closest_distance    = float('inf')
+            has_nearby_person   = False
+            owner_whitelisted   = False
+
             for person in persons:
-                person_center = person['center']
-                distance = np.sqrt(
-                    (obj_center[0] - person_center[0])**2 + 
-                    (obj_center[1] - person_center[1])**2
-                )
-                
-                closest_distance = min(closest_distance, distance)
-                
-                if distance <= self.person_distance_threshold:
+                dist = float(np.linalg.norm(
+                    np.array(obj_center) - np.array(person['center'])
+                ))
+                if dist < closest_distance:
+                    closest_distance = dist
+                if dist <= self.person_distance_threshold:
                     has_nearby_person = True
                     if person.get('is_whitelisted', False):
-                        is_owner_whitelisted = True
-                    break
-            
-            # Track object
+                        owner_whitelisted = True
+
             object_id = self._get_or_create_object_id(obj)
             current_object_ids.add(object_id)
-            
-            # Update tracking
+
             if object_id not in self.tracked_objects:
                 self.tracked_objects[object_id] = {
-                    'first_seen': timestamp,
-                    'position': obj_center,
-                    'bbox': obj['bbox'],
-                    'class_name': obj['class_name'],
-                    'last_update': timestamp,
-                    'has_person': has_nearby_person,
-                    'owner_whitelisted': is_owner_whitelisted
+                    'first_seen':       timestamp,
+                    'position':         obj_center,
+                    'bbox':             obj['bbox'],
+                    'class_name':       obj['class_name'],
+                    'last_update':      timestamp,
+                    'owner_whitelisted': owner_whitelisted,
                 }
             else:
-                self.tracked_objects[object_id]['last_update'] = timestamp
-                self.tracked_objects[object_id]['has_person'] = has_nearby_person
-                # Only update whitelisted status if there IS a person near it right now
-                if has_nearby_person:
-                    self.tracked_objects[object_id]['owner_whitelisted'] = is_owner_whitelisted
-            
-            # Check if object is unattended
-            obj_data = self.tracked_objects[object_id]
-            if not has_nearby_person and not obj_data.get('owner_whitelisted', False):
-                obj_data = self.tracked_objects[object_id]
-                time_unattended = (timestamp - obj_data['first_seen']).total_seconds()
-                
-                # Alert if unattended for too long
-                if time_unattended >= self.threshold_seconds:
-                    if object_id not in self.active_alerts:
-                        event = {
-                            'type': 'UNATTENDED_OBJECT',
-                            'timestamp': timestamp.isoformat(),
-                            'object_id': object_id,
-                            'location': {
-                                'x': obj_center[0],
-                                'y': obj_center[1]
-                            },
-                            'duration': int(time_unattended),
-                            'details': {
-                                'message': f"Unattended {obj['class_name']} detected for {int(time_unattended)} seconds",
-                                'object_type': obj['class_name'],
-                                'bbox': obj['bbox'],
-                                'closest_person_distance': int(closest_distance)
-                            }
-                        }
-                        
-                        events.append(event)
-                        self.active_alerts[object_id] = timestamp
-                        logger.warning(f"Unattended object detected: {obj['class_name']} (ID: {object_id})")
-        
+                rec = self.tracked_objects[object_id]
+                rec['last_update'] = timestamp
+                # Latch whitelisted status permanently for this object lifetime
+                if has_nearby_person and owner_whitelisted:
+                    rec['owner_whitelisted'] = True
+
+            rec = self.tracked_objects[object_id]
+
+            # Skip if a whitelisted owner was ever nearby
+            if rec.get('owner_whitelisted', False):
+                continue
+
+            if not has_nearby_person:
+                time_unattended = (timestamp - rec['first_seen']).total_seconds()
+
+                if (time_unattended >= self.threshold_seconds
+                        and object_id not in self._alerted):
+                    event = {
+                        'type':      'UNATTENDED_OBJECT',
+                        'timestamp': timestamp.isoformat(),
+                        'object_id': object_id,
+                        'location':  {'x': obj_center[0], 'y': obj_center[1]},
+                        'duration':  int(time_unattended),
+                        'details': {
+                            'message': (
+                                f"Unattended {obj['class_name']} detected "
+                                f"for {int(time_unattended)}s"
+                            ),
+                            'object_type':             obj['class_name'],
+                            'bbox':                    obj['bbox'],
+                            'closest_person_distance': int(closest_distance),
+                        },
+                    }
+                    events.append(event)
+                    self._alerted[object_id] = True
+                    logger.warning(
+                        f"Unattended object: {obj['class_name']} (ID {object_id})"
+                    )
+
+        # ------------------------------------------------------------------
         # Clean up objects no longer visible
+        # ------------------------------------------------------------------
         to_remove = []
-        for object_id in self.tracked_objects:
-            if object_id not in current_object_ids:
-                last_update = self.tracked_objects[object_id]['last_update']
-                if (timestamp - last_update).total_seconds() > 5:
-                    to_remove.append(object_id)
-        
-        for object_id in to_remove:
-            del self.tracked_objects[object_id]
-            if object_id in self.active_alerts:
-                del self.active_alerts[object_id]
-        
+        for oid, rec in self.tracked_objects.items():
+            if oid not in current_object_ids:
+                absent = (timestamp - rec['last_update']).total_seconds()
+                if absent > 5:
+                    to_remove.append(oid)
+
+        for oid in to_remove:
+            del self.tracked_objects[oid]
+            self._alerted.pop(oid, None)
+            if self._cooldown:
+                self._cooldown.notify_object_removed(oid)
+
         return events
-    
+
+    # ------------------------------------------------------------------
+    # Internal helpers (unchanged from original)
+    # ------------------------------------------------------------------
+
     def _detect_objects(self, frame: np.ndarray) -> List[Dict]:
         """
-        Detect objects in frame
-        This is a simplified implementation. In production, use YOLO.
-        
-        Args:
-            frame: Video frame
-        
-        Returns:
-            List of detected objects
+        Stub — replace with real YOLO inference.
+        In production:
+            results = self.model(frame)
+            for result in results:
+                for box in result.boxes:
+                    if int(box.cls[0]) in self.OBJECT_CLASS_IDS:
+                        ...
         """
-        # For demo purposes, returning empty list
-        # In production, you would use YOLO to detect bags, backpacks, etc.
-        # Example:
-        # results = self.model(frame)
-        # for result in results:
-        #     for box in result.boxes:
-        #         if int(box.cls[0]) in self.OBJECT_CLASS_IDS:
-        #             # Process object...
-        
         return []
-    
+
     def _get_or_create_object_id(self, obj: Dict) -> int:
-        """
-        Get existing object ID or create new one
-        Simple tracking based on position proximity
-        
-        Args:
-            obj: Object dictionary with center point
-        
-        Returns:
-            Object ID
-        """
         obj_center = obj['center']
-        
-        # Find closest tracked object
-        closest_id = None
-        closest_distance = float('inf')
-        
-        for obj_id, data in self.tracked_objects.items():
-            tracked_center = data['position']
-            distance = np.sqrt(
-                (obj_center[0] - tracked_center[0])**2 + 
-                (obj_center[1] - tracked_center[1])**2
-            )
-            
-            if distance < closest_distance and distance < 50:
-                closest_distance = distance
-                closest_id = obj_id
-        
+        closest_id: Optional[int]  = None
+        closest_dist = float('inf')
+
+        for oid, data in self.tracked_objects.items():
+            dist = float(np.linalg.norm(
+                np.array(obj_center) - np.array(data['position'])
+            ))
+            if dist < closest_dist and dist < 50:
+                closest_dist = dist
+                closest_id   = oid
+
         if closest_id is not None:
             return closest_id
-        else:
-            new_id = self.next_object_id
-            self.next_object_id += 1
-            return new_id
-    
+
+        new_id = self.next_object_id
+        self.next_object_id += 1
+        return new_id
+
+    # ------------------------------------------------------------------
+    # Stat helpers
+    # ------------------------------------------------------------------
+
     def get_tracked_count(self) -> int:
-        """Get number of currently tracked objects"""
         return len(self.tracked_objects)
-    
+
     def get_unattended_count(self) -> int:
-        """Get number of active unattended object alerts"""
-        return len(self.active_alerts)
-    
+        return len(self._alerted)
+
     def reset(self):
-        """Reset all tracking"""
-        self.tracked_objects = {}
-        self.active_alerts = {}
+        self.tracked_objects.clear()
+        self._alerted.clear()
         self.next_object_id = 1

@@ -75,3 +75,7 @@ footage_output/
 
 # Videos
 *.mp4
+
+# Input and output media folders
+input_media/
+output_media/
