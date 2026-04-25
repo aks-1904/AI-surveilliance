@@ -149,4 +149,32 @@ router.post('/mark-all-read', asyncHandler(async (req, res) => {
   });
 }));
 
+router.post("/:id/communicate", async (req, res)=>{
+  try {
+    const {sender, message} = req.body;
+
+      const alert = await Alert.findById(req.params.id);
+      if(!alert)
+      {
+        await res.status(404).json({
+          error: "Alert not found"
+        })
+      }
+
+      alert.guard_notes.push({sender, message});
+
+      if(alert.status === "NEW")
+      {
+        alert.status = 'INVESTIGATING';
+      }
+
+      await alert.save();
+
+      res.json(alert);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({error: 'Server error'});
+  }
+})
+
 module.exports = router;

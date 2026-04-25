@@ -1,24 +1,24 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
-const AI_BASE = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:5000';
+const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:3000";
+const AI_BASE = process.env.REACT_APP_AI_SERVICE_URL || "http://localhost:5000";
 
 // Create axios instance for backend
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
   headers: {
-    'Content-Type': 'application/json'
+    "Content-Type": "application/json",
   },
-  timeout: 10000
+  timeout: 10000,
 });
 
 // Create axios instance for AI service
 const aiApi = axios.create({
   baseURL: AI_BASE,
   headers: {
-    'Content-Type': 'application/json'
+    "Content-Type": "application/json",
   },
-  timeout: 10000
+  timeout: 10000,
 });
 
 // Request interceptor
@@ -29,7 +29,7 @@ api.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor
@@ -38,16 +38,16 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('[API Error]', error.response?.data || error.message);
+    console.error("[API Error]", error.response?.data || error.message);
     return Promise.reject(error);
-  }
+  },
 );
 
 // ==================== EVENTS API ====================
 
 export const getEvents = async (params = {}) => {
   try {
-    const response = await api.get('/events', { params });
+    const response = await api.get("/events", { params });
     return response.data;
   } catch (error) {
     throw error;
@@ -63,9 +63,12 @@ export const getEvent = async (eventId) => {
   }
 };
 
-export const acknowledgeEvent = async (eventId, user = 'user', notes = '') => {
+export const acknowledgeEvent = async (eventId, user = "user", notes = "") => {
   try {
-    const response = await api.put(`/events/${eventId}/acknowledge`, { user, notes });
+    const response = await api.put(`/events/${eventId}/acknowledge`, {
+      user,
+      notes,
+    });
     return response.data;
   } catch (error) {
     throw error;
@@ -83,7 +86,7 @@ export const deleteEvent = async (eventId) => {
 
 export const getEventStats = async () => {
   try {
-    const response = await api.get('/events/stats/summary');
+    const response = await api.get("/events/stats/summary");
     return response.data;
   } catch (error) {
     throw error;
@@ -95,7 +98,7 @@ export const getEventStats = async () => {
 export const getZones = async (activeOnly = true) => {
   try {
     const params = activeOnly ? { active: true } : {};
-    const response = await api.get('/zones', { params });
+    const response = await api.get("/zones", { params });
     return response.data;
   } catch (error) {
     throw error;
@@ -113,7 +116,7 @@ export const getZone = async (zoneId) => {
 
 export const createZone = async (zoneData) => {
   try {
-    const response = await api.post('/zones', zoneData);
+    const response = await api.post("/zones", zoneData);
     return response.data;
   } catch (error) {
     throw error;
@@ -140,7 +143,7 @@ export const deleteZone = async (zoneId) => {
 
 export const syncZones = async () => {
   try {
-    const response = await api.post('/zones/sync');
+    const response = await api.post("/zones/sync");
     return response.data;
   } catch (error) {
     throw error;
@@ -151,7 +154,7 @@ export const syncZones = async () => {
 
 export const getAnalytics = async (hours = 24) => {
   try {
-    const response = await api.get('/analytics/summary', { params: { hours } });
+    const response = await api.get("/analytics/summary", { params: { hours } });
     return response.data;
   } catch (error) {
     throw error;
@@ -160,7 +163,9 @@ export const getAnalytics = async (hours = 24) => {
 
 export const getTimeline = async (hours = 24) => {
   try {
-    const response = await api.get('/analytics/timeline', { params: { hours } });
+    const response = await api.get("/analytics/timeline", {
+      params: { hours },
+    });
     return response.data;
   } catch (error) {
     throw error;
@@ -169,8 +174,8 @@ export const getTimeline = async (hours = 24) => {
 
 export const getHeatmap = async (hours = 24, gridSize = 50) => {
   try {
-    const response = await api.get('/analytics/heatmap', { 
-      params: { hours, grid_size: gridSize } 
+    const response = await api.get("/analytics/heatmap", {
+      params: { hours, grid_size: gridSize },
     });
     return response.data;
   } catch (error) {
@@ -180,7 +185,7 @@ export const getHeatmap = async (hours = 24, gridSize = 50) => {
 
 export const getTrends = async (days = 7) => {
   try {
-    const response = await api.get('/analytics/trends', { params: { days } });
+    const response = await api.get("/analytics/trends", { params: { days } });
     return response.data;
   } catch (error) {
     throw error;
@@ -189,7 +194,7 @@ export const getTrends = async (days = 7) => {
 
 export const getZoneAnalytics = async (hours = 24) => {
   try {
-    const response = await api.get('/analytics/zones', { params: { hours } });
+    const response = await api.get("/analytics/zones", { params: { hours } });
     return response.data;
   } catch (error) {
     throw error;
@@ -198,7 +203,7 @@ export const getZoneAnalytics = async (hours = 24) => {
 
 export const getAlertAnalytics = async () => {
   try {
-    const response = await api.get('/analytics/alerts');
+    const response = await api.get("/analytics/alerts");
     return response.data;
   } catch (error) {
     throw error;
@@ -209,7 +214,7 @@ export const getAlertAnalytics = async () => {
 
 export const getAlerts = async (params = {}) => {
   try {
-    const response = await api.get('/alerts', { params });
+    const response = await api.get("/alerts", { params });
     return response.data;
   } catch (error) {
     throw error;
@@ -218,14 +223,14 @@ export const getAlerts = async (params = {}) => {
 
 export const getUnreadAlerts = async () => {
   try {
-    const response = await api.get('/alerts/unread');
+    const response = await api.get("/alerts/unread");
     return response.data;
   } catch (error) {
     throw error;
   }
 };
 
-export const markAlertAsRead = async (alertId, user = 'user') => {
+export const markAlertAsRead = async (alertId, user = "user") => {
   try {
     const response = await api.put(`/alerts/${alertId}/read`, { user });
     return response.data;
@@ -234,18 +239,21 @@ export const markAlertAsRead = async (alertId, user = 'user') => {
   }
 };
 
-export const dismissAlert = async (alertId, user = 'user', action = '') => {
+export const dismissAlert = async (alertId, user = "user", action = "") => {
   try {
-    const response = await api.put(`/alerts/${alertId}/dismiss`, { user, action });
+    const response = await api.put(`/alerts/${alertId}/dismiss`, {
+      user,
+      action,
+    });
     return response.data;
   } catch (error) {
     throw error;
   }
 };
 
-export const markAllAlertsAsRead = async (user = 'user') => {
+export const markAllAlertsAsRead = async (user = "user") => {
   try {
-    const response = await api.post('/alerts/mark-all-read', { user });
+    const response = await api.post("/alerts/mark-all-read", { user });
     return response.data;
   } catch (error) {
     throw error;
@@ -256,7 +264,7 @@ export const markAllAlertsAsRead = async (user = 'user') => {
 
 export const startCamera = async () => {
   try {
-    const response = await aiApi.post('/start');
+    const response = await aiApi.post("/start");
     return response.data;
   } catch (error) {
     throw error;
@@ -265,7 +273,7 @@ export const startCamera = async () => {
 
 export const stopCamera = async () => {
   try {
-    const response = await aiApi.post('/stop');
+    const response = await aiApi.post("/stop");
     return response.data;
   } catch (error) {
     throw error;
@@ -274,7 +282,7 @@ export const stopCamera = async () => {
 
 export const getAIStats = async () => {
   try {
-    const response = await aiApi.get('/stats');
+    const response = await aiApi.get("/stats");
     return response.data;
   } catch (error) {
     throw error;
@@ -283,7 +291,7 @@ export const getAIStats = async () => {
 
 export const getAIHealth = async () => {
   try {
-    const response = await aiApi.get('/health');
+    const response = await aiApi.get("/health");
     return response.data;
   } catch (error) {
     throw error;
@@ -292,7 +300,7 @@ export const getAIHealth = async () => {
 
 export const getBackendHealth = async () => {
   try {
-    const response = await api.get('/health');
+    const response = await api.get("/health");
     return response.data;
   } catch (error) {
     throw error;
@@ -301,7 +309,7 @@ export const getBackendHealth = async () => {
 
 export const resetAISystem = async () => {
   try {
-    const response = await aiApi.post('/reset');
+    const response = await aiApi.post("/reset");
     return response.data;
   } catch (error) {
     throw error;
@@ -313,14 +321,14 @@ export const resetAISystem = async () => {
 export const analyzeFootage = async (file, useZones = true) => {
   try {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('use_zones', useZones);
+    formData.append("file", file);
+    formData.append("use_zones", useZones);
 
-    const response = await aiApi.post('/footage/analyze', formData, {
+    const response = await aiApi.post("/footage/analyze", formData, {
       headers: {
         // Axios will automatically set the correct boundary for multipart/form-data
-        'Content-Type': 'multipart/form-data'
-      }
+        "Content-Type": "multipart/form-data",
+      },
     });
     return response.data;
   } catch (error) {
@@ -339,7 +347,7 @@ export const getFootageJobStatus = async (jobId) => {
 
 export const getAllFootageJobs = async () => {
   try {
-    const response = await aiApi.get('/footage/jobs');
+    const response = await aiApi.get("/footage/jobs");
     return response.data;
   } catch (error) {
     throw error;
@@ -352,6 +360,15 @@ export const getFootageVideoUrl = (jobId) => {
 
 export const getFootageSummaryUrl = (jobId) => {
   return `${aiApi.defaults.baseURL}/footage/download/${jobId}/summary`;
+};
+
+export const sendGuardMessage = async (alertId, sender, message) => {
+  const res = await axios.post(`${API_BASE}/api/alerts/${alertId}/communicate`, {
+    sender,
+    message,
+  });
+
+  return res.data;
 };
 
 export default api;

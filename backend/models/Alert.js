@@ -35,7 +35,24 @@ const alertSchema = new mongoose.Schema({
   },
   dismissed_at: Date,
   dismissed_by: String,
-  action_taken: String
+  action_taken: String,
+  assigned_guard: {
+    type: String,
+    default: 'Pending Assignment'
+  },
+  guard_notes: [{
+    sender: {
+      type: String,
+      enum: ['System', 'Guard', 'Admin']
+    },
+    message: {
+      type: String,
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now()
+    }
+  }]
 }, {
   timestamps: true
 });

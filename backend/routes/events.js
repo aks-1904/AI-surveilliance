@@ -10,7 +10,6 @@ const { asyncHandler } = require('../middleware/errorHandler');
  * Receive event from AI service
  */
 router.post('/', validateEvent, asyncHandler(async (req, res) => {
-  console.log(req.body);
   const { event_type, timestamp, location, details, risk_score, risk_level, metadata, attributes } = req.body;
   
   // Create event
